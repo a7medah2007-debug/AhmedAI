@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">أحمد AI</string>
+    <string name="accessibility_service_description">خدمة المساعد الذكي أحمد لقراءة الشاشة وتنفيذ المهام التلقائية بالنيابة عنك.</string>
+    <string name="accessibility_service_summary">تمكين أحمد من التحكم الذكي في واجهات الهاتف</string>
+    
+    <string name="status_ready">أحمد جاهز ومستعد</string>
+    <string name="status_listening">أحمد سامعك دلوقتي...</string>
+    <string name="status_thinking">أحمد بيفكر وبيخطط...</string>
+    <string name="status_executing">أحمد بينفذ الأمر...</string>
+    
+    <string name="perm_accessibility_title">خدمة التحكم في الشاشة (Accessibility)</string>
+    <string name="perm_accessibility_desc">مطلوبة لتنفيذ الأوامر وفتح التطبيقات والضغط التلقائي.</string>
+    <string name="btn_enable_accessibility">تفعيل صلاحية التحكم</string>
+    
+    <string name="perm_mic_title">صلاحية الميكروفون</string>
+    <string name="perm_mic_desc">مطلوبة لسماع صوتك وأوامرك المباشرة.</string>
+    <string name="btn_enable_mic">منح صلاحية الصوت</string>
+
+    <string name="perm_overlay_title">الظهور فوق التطبيقات</string>
+    <string name="perm_overlay_desc">لإظهار زر أحمد العائم فوق أي شاشة تنادي عليه فيها.</string>
+    <string name="btn_enable_overlay">تفعيل الزر العائم</string>
+    
+    <string name="api_key_hint">أدخل مفتاح DeepSeek API الخاص بك</string>
+    <string name="btn_save_key">حفظ وتفعيل</string>
+    <string name="btn_test_speech">تكلم مع أحمد الآن</string>
+</resources>
