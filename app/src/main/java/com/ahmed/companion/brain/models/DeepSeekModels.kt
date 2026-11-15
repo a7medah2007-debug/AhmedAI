@@ -7,7 +7,7 @@ data class ChatCompletionRequest(
     @SerializedName("messages") val messages: List<ChatMessage>,
     @SerializedName("tools") val tools: List<ChatTool>? = null,
     @SerializedName("tool_choice") val toolChoice: String? = "auto",
-    @SerializedName("temperature") val temperature: Double = 0.4,
+    @SerializedName("temperature") val temperature: Double = 0.2,
     @SerializedName("max_tokens") val maxTokens: Int = 1000
 )
 
@@ -35,13 +35,13 @@ data class ChatResponse(
 )
 
 data class ChatChoice(
-    @SerializedName("index") val index: Int,
+    @SerializedName("index") val index: Int?,
     @SerializedName("message") val message: ChatMessage
 )
 
 data class ToolCall(
     @SerializedName("id") val id: String,
-    @SerializedName("type") val type: String,
+    @SerializedName("type") val type: String = "function",
     @SerializedName("function") val function: ToolCallFunction
 )
 

@@ -118,9 +118,7 @@ class AhmedVoiceService : Service() {
     }
 
     /**
-     * Autonomous Multi-Step ReAct Agent Loop:
-     * Does not stop after a single tool call!
-     * Repeats: Decision -> Execution -> Screen Wait -> New Screen State -> Next Decision
+     * Fully Validated ReAct Loop with Strict Tool-Response Sequence
      */
     private fun handleAutonomousTaskLoop(userSpeech: String) {
         val client = deepSeekClient ?: return
@@ -133,7 +131,6 @@ class AhmedVoiceService : Service() {
             val conversation = mutableListOf<ChatMessage>()
             conversation.add(ChatMessage(role = "system", content = systemPrompt))
 
-            // Initial screen state
             val initialScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
             if (initialScreen.isNotBlank()) {
                 conversation.add(ChatMessage(role = "system", content = "الشاشة المفتوحة حالياً:\n$initialScreen"))
@@ -141,46 +138,42 @@ class AhmedVoiceService : Service() {
 
             conversation.add(ChatMessage(role = "user", content = userSpeech))
 
-            // Loop for up to 4 autonomous steps
+            // Multi-step loop
             for (step in 1..4) {
                 val result = client.executeConversation(conversation)
 
                 when (result) {
                     is DeepSeekClient.AgentResult.SpeakAndAct -> {
+                        // 1. MUST append assistant message before tool responses
+                        conversation.add(result.assistantMessage)
+
                         if (result.speechResponse.isNotBlank()) {
                             ttsManager?.speak(result.speechResponse)
                             updateFloatingStatus("بينفذ...")
                         }
 
-                        // Execute each tool
+                        // 2. Execute each tool and add tool response with updated screen
                         for (tool in result.toolCalls) {
                             val executionOutput = automationEngine.executeToolCall(tool)
+                            delay(1200)
+
+                            val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+                            val combinedOutput = "$executionOutput\nشاشة الهاتف الآن تعرض ما يلي:\n$nextScreen"
+
                             conversation.add(
                                 ChatMessage(
                                     role = "tool",
                                     toolCallId = tool.id,
-                                    content = executionOutput
+                                    content = combinedOutput
                                 )
                             )
                         }
-
-                        // Wait for UI to render
-                        delay(1500)
-
-                        // Re-dump fresh screen state and feed it back to Ahmed
-                        val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
-                        conversation.add(
-                            ChatMessage(
-                                role = "system",
-                                content = "شاشة الهاتف الآن بعد تنفيذ الخطوة رقم $step تعرض ما يلي:\n$nextScreen\nإذا تم تحقيق رغبة المستخدم بالكامل، تحدث معه مؤكداً ذلك بدون استدعاء أدوات جديدة. إذا كان هناك خطوة ناقصة (مثل تشغيل أول فيديو ظاهر، أو إرسال الرسالة)، استدعِ الأداة المناسبة فوراً."
-                            )
-                        )
                     }
 
                     is DeepSeekClient.AgentResult.SpeakOnly -> {
                         ttsManager?.speak(result.speechResponse)
                         updateFloatingStatus("أحمد")
-                        break // Goal achieved!
+                        break
                     }
 
                     is DeepSeekClient.AgentResult.Error -> {

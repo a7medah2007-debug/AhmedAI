@@ -31,7 +31,8 @@ class DeepSeekClient(private val apiKey: String) {
     sealed class AgentResult {
         data class SpeakAndAct(
             val speechResponse: String,
-            val toolCalls: List<ToolCall>
+            val toolCalls: List<ToolCall>,
+            val assistantMessage: ChatMessage
         ) : AgentResult()
 
         data class SpeakOnly(val speechResponse: String) : AgentResult()
@@ -65,18 +66,18 @@ class DeepSeekClient(private val apiKey: String) {
 
             if (!response.isSuccessful || responseBody == null) {
                 Log.e(TAG, "API Error: code=${response.code}, body=$responseBody")
-                return@withContext AgentResult.Error("مشكلة في الاتصال بسيرفر الذكاء الاصطناعي.")
+                return@withContext AgentResult.Error("مشكلة في الاتصال بسيرفر الذكاء الاصطناعي: كود ${response.code}")
             }
 
             val chatResponse = gson.fromJson(responseBody, ChatResponse::class.java)
             val choice = chatResponse.choices?.firstOrNull()
-            val message = choice?.message
+            val message = choice?.message ?: return@withContext AgentResult.Error("رد فارغ من الخادم.")
 
-            val contentText = message?.content?.trim() ?: ""
-            val toolCalls = message?.toolCalls ?: emptyList()
+            val contentText = message.content?.trim() ?: ""
+            val toolCalls = message.toolCalls ?: emptyList()
 
             if (toolCalls.isNotEmpty()) {
-                AgentResult.SpeakAndAct(contentText, toolCalls)
+                AgentResult.SpeakAndAct(contentText, toolCalls, message)
             } else if (contentText.isNotBlank()) {
                 AgentResult.SpeakOnly(contentText)
             } else {
@@ -85,29 +86,7 @@ class DeepSeekClient(private val apiKey: String) {
 
         } catch (e: Exception) {
             Log.e(TAG, "Exception in executeConversation: ${e.message}", e)
-            AgentResult.Error("حصل خطأ بسيط في الاتصال، جرب تاني.")
+            AgentResult.Error("حصل خطأ في الاتصال: ${e.localizedMessage}")
         }
-    }
-
-    suspend fun processUserSpeech(
-        userText: String,
-        screenContext: String = "",
-        installedAppsSummary: String = ""
-    ): AgentResult {
-        val systemPrompt = AhmedPersona.buildSystemPrompt(installedAppsSummary)
-        val messages = mutableListOf<ChatMessage>()
-        messages.add(ChatMessage(role = "system", content = systemPrompt))
-
-        if (screenContext.isNotBlank()) {
-            messages.add(
-                ChatMessage(
-                    role = "system",
-                    content = "الشاشة المفتوحة حالياً:\n$screenContext"
-                )
-            )
-        }
-
-        messages.add(ChatMessage(role = "user", content = userText))
-        return executeConversation(messages)
     }
 }

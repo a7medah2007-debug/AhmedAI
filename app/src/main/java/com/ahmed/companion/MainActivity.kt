@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Multi-step autonomous execution loop inside MainActivity
+     * Strict sequential autonomous loop
      */
     private fun runAutonomousLoop(userSpeech: String) {
         binding.tvLiveStatus.text = "أحمد بيفكر وبيخطط..."
@@ -158,6 +158,8 @@ class MainActivity : AppCompatActivity() {
 
                 when (result) {
                     is DeepSeekClient.AgentResult.SpeakAndAct -> {
+                        conversation.add(result.assistantMessage)
+
                         if (result.speechResponse.isNotBlank()) {
                             binding.tvLiveStatus.text = result.speechResponse
                             ttsManager?.speak(result.speechResponse)
@@ -165,23 +167,19 @@ class MainActivity : AppCompatActivity() {
 
                         for (tool in result.toolCalls) {
                             val output = automationEngine.executeToolCall(tool)
+                            delay(1200)
+
+                            val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+                            val combinedOutput = "$output\nالشاشة الآن تعرض:\n$nextScreen"
+
                             conversation.add(
                                 ChatMessage(
                                     role = "tool",
                                     toolCallId = tool.id,
-                                    content = output
+                                    content = combinedOutput
                                 )
                             )
                         }
-
-                        delay(1500)
-                        val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
-                        conversation.add(
-                            ChatMessage(
-                                role = "system",
-                                content = "الشاشة الآن بعد الخطوة $step تعرض:\n$nextScreen\nإذا انتهى المطلوب بالكامل أكد للمستخدم بدون أدوات، وإلا استدعِ الأداة الناقصة."
-                            )
-                        )
                     }
 
                     is DeepSeekClient.AgentResult.SpeakOnly -> {
