@@ -43,8 +43,6 @@ class MainActivity : AppCompatActivity() {
         if (isGranted) {
             Toast.makeText(this, "تم منح صلاحية الميكروفون بنجاح", Toast.LENGTH_SHORT).show()
             updateUiState()
-        } else {
-            Toast.makeText(this, "صلاحية الصوت ضرورية لسماع أوامرك", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -60,7 +58,6 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         setupVoiceComponents()
 
-        // Start background companion service
         AhmedVoiceService.start(this)
     }
 
@@ -85,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnAccessibilityPerm.setOnClickListener {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             startActivity(intent)
-            Toast.makeText(this, "ابحث عن 'خدمة أحمد' وقم بتفعيلها", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "إذا كانت مفعلة، قم بإيقافها ثم تشغيلها مرة أخرى لتنشيط الخدمة", Toast.LENGTH_LONG).show()
         }
 
         binding.btnOverlayPerm.setOnClickListener {
@@ -114,9 +111,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupVoiceComponents() {
-        ttsManager = TTSManager(this) { success ->
-            // Ready
-        }
+        ttsManager = TTSManager(this) { success -> }
 
         speechManager = SpeechManager(
             context = this,
@@ -127,16 +122,13 @@ class MainActivity : AppCompatActivity() {
                 binding.tvLiveStatus.text = errorMsg
             },
             onListeningStateChanged = { isListening ->
-                binding.tvLiveStatus.text = if (isListening) "سامعك يا غالي... تكلم" else "أحمد جاهز ومستعد"
+                binding.tvLiveStatus.text = if (isListening) "سامعك يا غالي... اتفضل" else "أحمد جاهز ومستعد"
             }
         )
     }
 
-    /**
-     * Strict sequential autonomous loop
-     */
     private fun runAutonomousLoop(userSpeech: String) {
-        binding.tvLiveStatus.text = "أحمد بيفكر وبيخطط..."
+        binding.tvLiveStatus.text = "أحمد بيفكر..."
         val client = DeepSeekClient(prefs.deepSeekApiKey)
 
         CoroutineScope(Dispatchers.Main).launch {
@@ -159,15 +151,11 @@ class MainActivity : AppCompatActivity() {
                 when (result) {
                     is DeepSeekClient.AgentResult.SpeakAndAct -> {
                         conversation.add(result.assistantMessage)
-
-                        if (result.speechResponse.isNotBlank()) {
-                            binding.tvLiveStatus.text = result.speechResponse
-                            ttsManager?.speak(result.speechResponse)
-                        }
+                        binding.tvLiveStatus.text = "بينفذ بهدوء..."
 
                         for (tool in result.toolCalls) {
                             val output = automationEngine.executeToolCall(tool)
-                            delay(1200)
+                            delay(1000)
 
                             val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
                             val combinedOutput = "$output\nالشاشة الآن تعرض:\n$nextScreen"
@@ -199,10 +187,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUiState() {
-        val isAccessibilityEnabled = AhmedAccessibilityService.isServiceRunning
-        if (isAccessibilityEnabled) {
-            binding.btnAccessibilityPerm.text = "مفعلة ✓"
+        val isServiceRunning = AhmedAccessibilityService.isServiceRunning
+        val isSettingsEnabled = AhmedAccessibilityService.isAccessibilitySettingsEnabled(this)
+
+        if (isServiceRunning) {
+            binding.btnAccessibilityPerm.text = "نشطة وتعمل ✓"
             binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_green))
+        } else if (isSettingsEnabled) {
+            // Setting is on, but system killed process during update
+            binding.btnAccessibilityPerm.text = "تحتاج إعادة تنشيط (اقفل وافتح المفتاح)"
+            binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_amber))
         } else {
             binding.btnAccessibilityPerm.text = "تفعيل الصلاحية"
             binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))

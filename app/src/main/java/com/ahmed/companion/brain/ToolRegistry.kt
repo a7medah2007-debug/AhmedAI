@@ -7,7 +7,29 @@ object ToolRegistry {
 
     fun getUniversalTools(): List<ChatTool> {
         return listOf(
-            // 1. Click First Video or First Result on Screen
+            // 1. Dedicated Search on YouTube with Auto-Play
+            ChatTool(
+                function = ToolFunction(
+                    name = "search_youtube",
+                    description = "البحث الفوري في يوتيوب وفتح وتشغيل النتائج مباشرة لأي سورة أو فيديو أو محتوى مطلوب",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "query" to mapOf(
+                                "type" to "string",
+                                "description" to "كلمات البحث بالإنجليزية أو العربية حسب نطق المستخدم الدقيق"
+                            ),
+                            "play_first" to mapOf(
+                                "type" to "boolean",
+                                "description" to "تعيين إلى true لتشغيل أول فيديو تلقائياً فور ظهوره"
+                            )
+                        ),
+                        "required" to listOf("query")
+                    )
+                )
+            ),
+
+            // 2. Click First Video or First Result on Screen
             ChatTool(
                 function = ToolFunction(
                     name = "click_first_result",
@@ -15,24 +37,6 @@ object ToolRegistry {
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to emptyMap<String, Any>()
-                    )
-                )
-            ),
-
-            // 2. Dedicated Instant Search on YouTube
-            ChatTool(
-                function = ToolFunction(
-                    name = "search_youtube",
-                    description = "البحث الفوري في يوتيوب وفتح صفحة النتائج مباشرة لأي سورة أو فيديو أو محتوى مطلوب",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "query" to mapOf(
-                                "type" to "string",
-                                "description" to "كلمات البحث بالإنجليزية أو العربية حسب نطق المستخدم الدقيق"
-                            )
-                        ),
-                        "required" to listOf("query")
                     )
                 )
             ),

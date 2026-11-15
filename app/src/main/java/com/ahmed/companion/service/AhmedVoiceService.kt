@@ -118,7 +118,7 @@ class AhmedVoiceService : Service() {
     }
 
     /**
-     * Fully Validated ReAct Loop with Strict Tool-Response Sequence
+     * Silent execution during intermediate steps, only speaks on completion
      */
     private fun handleAutonomousTaskLoop(userSpeech: String) {
         val client = deepSeekClient ?: return
@@ -138,27 +138,21 @@ class AhmedVoiceService : Service() {
 
             conversation.add(ChatMessage(role = "user", content = userSpeech))
 
-            // Multi-step loop
             for (step in 1..4) {
                 val result = client.executeConversation(conversation)
 
                 when (result) {
                     is DeepSeekClient.AgentResult.SpeakAndAct -> {
-                        // 1. MUST append assistant message before tool responses
                         conversation.add(result.assistantMessage)
+                        updateFloatingStatus("شغال...")
 
-                        if (result.speechResponse.isNotBlank()) {
-                            ttsManager?.speak(result.speechResponse)
-                            updateFloatingStatus("بينفذ...")
-                        }
-
-                        // 2. Execute each tool and add tool response with updated screen
+                        // Silent execution of tools without intermediate chatter
                         for (tool in result.toolCalls) {
                             val executionOutput = automationEngine.executeToolCall(tool)
-                            delay(1200)
+                            delay(1000)
 
                             val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
-                            val combinedOutput = "$executionOutput\nشاشة الهاتف الآن تعرض ما يلي:\n$nextScreen"
+                            val combinedOutput = "$executionOutput\nالشاشة الآن تعرض:\n$nextScreen"
 
                             conversation.add(
                                 ChatMessage(
@@ -171,6 +165,7 @@ class AhmedVoiceService : Service() {
                     }
 
                     is DeepSeekClient.AgentResult.SpeakOnly -> {
+                        // Speak ONLY on final achievement
                         ttsManager?.speak(result.speechResponse)
                         updateFloatingStatus("أحمد")
                         break

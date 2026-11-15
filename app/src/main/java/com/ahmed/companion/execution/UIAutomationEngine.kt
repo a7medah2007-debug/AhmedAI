@@ -35,24 +35,35 @@ class UIAutomationEngine(
         val accessibility = AhmedAccessibilityService.instance
 
         return when (name) {
-            "click_first_result" -> {
-                if (accessibility != null) {
-                    val clicked = accessibility.clickFirstContentItem()
-                    if (clicked) "تم الضغط على أول فيديو أو نتيجة بحث في الشاشة." else "لم أجد عنصراً مناسباً للضغط عليه."
+            "search_youtube" -> {
+                val query = args["query"]?.toString() ?: ""
+                val shouldPlayFirst = (args["play_first"] as? Boolean) ?: true
+                val success = systemActions.searchYouTube(query)
+                if (success) {
+                    // Allow YouTube to load and render search results
+                    delay(2200)
+
+                    if (shouldPlayFirst && accessibility != null) {
+                        val clicked = accessibility.clickFirstContentItem()
+                        if (clicked) {
+                            "بحثت عن $query في يوتيوب وتم تشغيل أول فيديو بنجاح."
+                        } else {
+                            "بحثت عن $query في يوتيوب والنتائج معروضة الآن."
+                        }
+                    } else {
+                        "بحثت عن: $query في يوتيوب والنتائج معروضة الآن."
+                    }
                 } else {
-                    "خدمة إمكانية الوصول غير مفعلة."
+                    "حصل خطأ أثناء فتح يوتيوب."
                 }
             }
 
-            "search_youtube" -> {
-                val query = args["query"]?.toString() ?: ""
-                val success = systemActions.searchYouTube(query)
-                if (success) {
-                    delay(1500) // Wait for YouTube results to appear
-                    // If user asked to play, accessibility can click the top result
-                    "بحثت عن: $query في يوتيوب والنتائج معروضة الآن."
+            "click_first_result" -> {
+                if (accessibility != null) {
+                    val clicked = accessibility.clickFirstContentItem()
+                    if (clicked) "تم الضغط على أول فيديو أو نتيجة في الشاشة." else "النتائج ما زالت قيد التحميل."
                 } else {
-                    "حصل خطأ أثناء فتح يوتيوب."
+                    "أعد تنشيط صلاحية الـ Accessibility من الإعدادات."
                 }
             }
 
@@ -63,7 +74,7 @@ class UIAutomationEngine(
                     accessibility.automateWhatsAppSend(contact, message)
                     "فتحت الواتس وببحث عن $contact وبكتب الرسالة أوتوماتيك."
                 } else {
-                    "محتاج تفعل صلاحية الـ Accessibility عشان أقدر أرسل رسالة الواتس تلقائياً."
+                    "أعد تنشيط صلاحية الـ Accessibility من الإعدادات."
                 }
             }
 
@@ -71,7 +82,7 @@ class UIAutomationEngine(
                 val appName = args["app_name"]?.toString() ?: ""
                 val success = systemActions.launchAppByName(appName)
                 if (success) {
-                    delay(1200) // Allow app to open
+                    delay(1500) // Allow app to open
                     "فتحت تطبيق $appName بنجاح."
                 } else {
                     "ملقتش تطبيق بالاسم ده على الجهاز يا غالي."

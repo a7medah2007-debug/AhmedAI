@@ -1,13 +1,17 @@
 package com.ahmed.companion.service
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 
 class AhmedAccessibilityService : AccessibilityService() {
@@ -19,18 +23,52 @@ class AhmedAccessibilityService : AccessibilityService() {
 
         val isServiceRunning: Boolean
             get() = instance != null
+
+        fun isAccessibilitySettingsEnabled(context: Context): Boolean {
+            val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager ?: return false
+            val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            for (service in enabledServices) {
+                if (service.resolveInfo.serviceInfo.packageName == context.packageName) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        Log.d(TAG, "Ahmed Accessibility Service onCreate")
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         Log.d(TAG, "Ahmed Accessibility Service Connected!")
+
+        val info = serviceInfo ?: AccessibilityServiceInfo()
+        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK
+        info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+        info.flags = info.flags or 
+                     AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+                     AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
+                     AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+        serviceInfo = info
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Keep active reference fresh
+        if (instance == null) {
+            instance = this
+        }
+    }
+
+    override fun onInterrupt() {
+        Log.w(TAG, "Ahmed Accessibility Service Interrupted")
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -43,11 +81,11 @@ class AhmedAccessibilityService : AccessibilityService() {
      * Parse current screen into a clean, structured summary of visible interactive elements
      */
     fun dumpScreenState(): String {
-        val rootNode = rootInActiveWindow ?: return "الشاشة فارغة أو غير قابلة للقراءة حالياً."
+        val rootNode = rootInActiveWindow ?: return "الشاشة فارغة أو جاري تحميل محتواها..."
         val elements = mutableListOf<String>()
         traverseNode(rootNode, elements, 0)
         return if (elements.isEmpty()) {
-            "لم يتم العثور على أزرار أو نصوص واضحة في الشاشة الحالية."
+            "الشاشة قيد التحميل، لا توجد نصوص أو أزرار واضحة حالياً."
         } else {
             elements.take(35).joinToString("\n")
         }
@@ -70,7 +108,7 @@ class AhmedAccessibilityService : AccessibilityService() {
         if (label != null) {
             val typeStr = when {
                 isEditable -> "[حقل كتابة]"
-                isClickable -> "[زر/عنصر]"
+                isClickable -> "[زر]"
                 else -> "[نص]"
             }
             list.add("- $typeStr: \"$label\"")
@@ -86,9 +124,6 @@ class AhmedAccessibilityService : AccessibilityService() {
      */
     fun clickFirstContentItem(): Boolean {
         val rootNode = rootInActiveWindow ?: return false
-        val screenBounds = Rect()
-
-        // Find the first clickable container or item below the top 15% of the screen (to skip search bar/tabs)
         return findFirstContentNode(rootNode, 0)
     }
 
@@ -98,12 +133,11 @@ class AhmedAccessibilityService : AccessibilityService() {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
 
-        // Ignore items in the very top 150px (status bar, search bar, app header)
-        if (bounds.top > 180 && bounds.height() > 80) {
+        // Skip top 180px (app bar/search bar) to target actual content
+        if (bounds.top > 180 && bounds.height() > 70) {
             val text = node.text?.toString()?.trim() ?: ""
             val desc = node.contentDescription?.toString()?.trim() ?: ""
 
-            // If it has video or content text or is clickable
             if (node.isClickable && (text.isNotBlank() || desc.isNotBlank())) {
                 Log.d(TAG, "Clicked first content item: text='$text', desc='$desc'")
                 return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -125,7 +159,6 @@ class AhmedAccessibilityService : AccessibilityService() {
         val rootNode = rootInActiveWindow ?: return false
         val cleanQuery = query.lowercase().trim()
 
-        // If target represents first item / video
         if (cleanQuery == "first_result" || cleanQuery == "first_item" || cleanQuery == "اول فيديو" || cleanQuery == "أول نتيجة") {
             return clickFirstContentItem()
         }
@@ -246,25 +279,20 @@ class AhmedAccessibilityService : AccessibilityService() {
             startActivity(launchIntent)
         }
 
-        // Step 1: Click Search icon after WhatsApp opens
         handler.postDelayed({
-            val clickedSearch = clickElementByText("Search") || 
-                                clickElementByText("بحث") || 
-                                clickElementByText("menuitem_search")
+            clickElementByText("Search") || 
+            clickElementByText("بحث") || 
+            clickElementByText("menuitem_search")
 
-            // Step 2: Type contact name into search field
             handler.postDelayed({
                 typeTextIntoField(contactName)
 
-                // Step 3: Click contact name in search results
                 handler.postDelayed({
-                    val clickedContact = clickElementByText(contactName) || clickFirstContentItem()
+                    clickElementByText(contactName) || clickFirstContentItem()
 
-                    // Step 4: Type message
                     handler.postDelayed({
                         typeTextIntoField(message)
 
-                        // Step 5: Click Send button
                         handler.postDelayed({
                             clickElementByText("Send") || 
                             clickElementByText("إرسال") || 
