@@ -57,10 +57,8 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         setupVoiceComponents()
 
-        // Automatically start the background service if permissions are ready
-        if (prefs.hasApiKey) {
-            AhmedVoiceService.start(this)
-        }
+        // Automatically start the background companion service
+        AhmedVoiceService.start(this)
     }
 
     override fun onResume() {
@@ -69,7 +67,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        // Load API Key
+        // Load API Key (automatically uses the embedded key)
         binding.etApiKey.setText(prefs.deepSeekApiKey)
 
         // Save API Key
@@ -115,11 +113,6 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (!prefs.hasApiKey) {
-                Toast.makeText(this, "احفظ مفتاح DeepSeek أولاً يا غالي", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-
             binding.tvLiveStatus.text = "سامعك دلوقتي يا غالي..."
             speechManager?.startListening()
         }
@@ -127,9 +120,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupVoiceComponents() {
         ttsManager = TTSManager(this) { success ->
-            if (success) {
-                // Warm up
-            }
+            // Ready
         }
 
         speechManager = SpeechManager(
@@ -187,6 +178,7 @@ class MainActivity : AppCompatActivity() {
             binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_green))
         } else {
             binding.btnAccessibilityPerm.text = "تفعيل الصلاحية"
+            binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
         }
 
         // Overlay state
@@ -196,6 +188,7 @@ class MainActivity : AppCompatActivity() {
                 binding.btnOverlayPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_green))
             } else {
                 binding.btnOverlayPerm.text = "تفعيل الزر العائم"
+                binding.btnOverlayPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
             }
         }
 
@@ -205,6 +198,7 @@ class MainActivity : AppCompatActivity() {
             binding.btnMicPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_green))
         } else {
             binding.btnMicPerm.text = "منح إذن الصوت"
+            binding.btnMicPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
         }
     }
 

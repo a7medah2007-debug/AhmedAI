@@ -35,11 +35,32 @@ class UIAutomationEngine(
         val accessibility = AhmedAccessibilityService.instance
 
         return when (name) {
+            "search_youtube" -> {
+                val query = args["query"]?.toString() ?: ""
+                val success = systemActions.searchYouTube(query)
+                if (success) {
+                    "بحثت عن $query في يوتيوب وشغلت النتائج."
+                } else {
+                    "حصل خطأ أثناء فتح يوتيوب."
+                }
+            }
+
+            "send_whatsapp" -> {
+                val contact = args["contact_name"]?.toString() ?: ""
+                val message = args["message"]?.toString() ?: ""
+                if (accessibility != null) {
+                    accessibility.automateWhatsAppSend(contact, message)
+                    "فتحت الواتس وببحث عن $contact وبكتب الرسالة أوتوماتيك."
+                } else {
+                    "محتاج تفعل صلاحية الـ Accessibility عشان أقدر أرسل رسالة الواتس تلقائياً."
+                }
+            }
+
             "open_app" -> {
                 val appName = args["app_name"]?.toString() ?: ""
                 val success = systemActions.launchAppByName(appName)
                 if (success) {
-                    delay(1000) // Allow app to open
+                    delay(1200) // Allow app to open
                     "فتحت تطبيق $appName بنجاح."
                 } else {
                     "ملقتش تطبيق بالاسم ده على الجهاز يا غالي."
@@ -90,17 +111,6 @@ class UIAutomationEngine(
                 val label = args["label"]?.toString() ?: "منبه أحمد"
                 val success = systemActions.setAlarm(hour, minute, label)
                 if (success) "تم ضبط المنبه على الساعة $hour:$minute بنجاح." else "حصلت مشكلة في ضبط المنبه."
-            }
-
-            "send_whatsapp" -> {
-                val contact = args["contact_name"]?.toString() ?: ""
-                val message = args["message"]?.toString() ?: ""
-                if (accessibility != null) {
-                    accessibility.sendWhatsAppMessage(contact, message)
-                    "فتحت الواتساب وبعت الرسالة لـ $contact."
-                } else {
-                    "محتاج تفعل صلاحية الـ Accessibility عشان أقدر أبعت رسالة الواتس تلقائياً."
-                }
             }
 
             "device_action" -> {

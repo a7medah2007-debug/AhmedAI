@@ -1,5 +1,6 @@
 package com.ahmed.companion.execution
 
+import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -7,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.AlarmClock
 import android.util.Log
+import java.net.URLEncoder
 
 class SystemActions(private val context: Context) {
 
@@ -31,6 +33,33 @@ class SystemActions(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error setting alarm: ${e.message}")
             false
+        }
+    }
+
+    /**
+     * Search directly inside YouTube and open the results page
+     */
+    fun searchYouTube(query: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_SEARCH).apply {
+                setPackage("com.google.android.youtube")
+                putExtra("query", query)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            try {
+                val encoded = URLEncoder.encode(query, "UTF-8")
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(webIntent)
+                true
+            } catch (ex: Exception) {
+                Log.e(TAG, "Error searching YouTube: ${ex.message}")
+                false
+            }
         }
     }
 
@@ -68,9 +97,6 @@ class SystemActions(private val context: Context) {
         // Search through all installed applications
         val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         for (appInfo in packages) {
-            if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 && (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
-                // Skip plain core system apps unless matched
-            }
             val label = pm.getApplicationLabel(appInfo).toString().lowercase()
             if (label.contains(query) || query.contains(label)) {
                 val intent = pm.getLaunchIntentForPackage(appInfo.packageName)
@@ -94,7 +120,6 @@ class SystemActions(private val context: Context) {
             val names = mutableListOf<String>()
 
             for (appInfo in packages) {
-                // Filter to primarily launchable apps
                 if (pm.getLaunchIntentForPackage(appInfo.packageName) != null) {
                     val label = pm.getApplicationLabel(appInfo).toString()
                     if (label.isNotBlank() && !label.startsWith("com.")) {

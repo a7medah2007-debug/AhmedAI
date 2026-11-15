@@ -7,11 +7,45 @@ object ToolRegistry {
 
     fun getUniversalTools(): List<ChatTool> {
         return listOf(
-            // 1. Open Any App
+            // 1. Dedicated Search on YouTube (Instant Results)
+            ChatTool(
+                function = ToolFunction(
+                    name = "search_youtube",
+                    description = "البحث الفوري في يوتيوب وتشغيل النتائج مباشرة لأي سورة أو أغنية أو فيديو أو بودكاست",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "query" to mapOf(
+                                "type" to "string",
+                                "description" to "عنوان الفيديو أو الكلمات المطلوب البحث عنها في يوتيوب"
+                            )
+                        ),
+                        "required" to listOf("query")
+                    )
+                )
+            ),
+
+            // 2. Send WhatsApp Message (Automated Search & Send)
+            ChatTool(
+                function = ToolFunction(
+                    name = "send_whatsapp",
+                    description = "إرسال رسالة واتساب إلى شخص محدد تلقائياً والضغط على زر الإرسال",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "contact_name" to mapOf("type" to "string", "description" to "اسم الشخص أو جهة الاتصال كما هو مسجل في الهاتف"),
+                            "message" to mapOf("type" to "string", "description" to "نص الرسالة المطلوب كتابتها وإرسالها")
+                        ),
+                        "required" to listOf("contact_name", "message")
+                    )
+                )
+            ),
+
+            // 3. Open Any App
             ChatTool(
                 function = ToolFunction(
                     name = "open_app",
-                    description = "فتح أي تطبيق مثبت على هاتف المستخدم (مثل: يوتيوب، واتساب، المتصفح، المعرض، الإعدادات، تيك توك، الخ)",
+                    description = "فتح أي تطبيق مثبت على هاتف المستخدم (مثل: يوتيوب، واتساب، المتصفح، المعرض، الإعدادات، تيك توك، فيسبوك، إلخ)",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to mapOf(
@@ -25,7 +59,24 @@ object ToolRegistry {
                 )
             ),
 
-            // 2. Read Screen
+            // 4. Fast Path: Set Alarm
+            ChatTool(
+                function = ToolFunction(
+                    name = "set_alarm",
+                    description = "ضبط منبه النظام مباشرة بتوقيت محدد بدون لمس الشاشة",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "hour" to mapOf("type" to "integer", "description" to "ساعة التنبيه بنظام 24 ساعة (0 إلى 23)"),
+                            "minute" to mapOf("type" to "integer", "description" to "دقيقة التنبيه (0 إلى 59)"),
+                            "label" to mapOf("type" to "string", "description" to "عنوان أو سبب المنبه")
+                        ),
+                        "required" to listOf("hour", "minute")
+                    )
+                )
+            ),
+
+            // 5. Read Screen (For autonomous UI steps)
             ChatTool(
                 function = ToolFunction(
                     name = "read_screen",
@@ -37,7 +88,7 @@ object ToolRegistry {
                 )
             ),
 
-            // 3. Click Element on Screen
+            // 6. Click Element on Screen
             ChatTool(
                 function = ToolFunction(
                     name = "click_element",
@@ -55,7 +106,7 @@ object ToolRegistry {
                 )
             ),
 
-            // 4. Type Text into Active Input
+            // 7. Type Text into Active Input
             ChatTool(
                 function = ToolFunction(
                     name = "type_text",
@@ -73,7 +124,7 @@ object ToolRegistry {
                 )
             ),
 
-            // 5. Scroll Screen
+            // 8. Scroll Screen
             ChatTool(
                 function = ToolFunction(
                     name = "scroll_screen",
@@ -92,40 +143,7 @@ object ToolRegistry {
                 )
             ),
 
-            // 6. Fast Path: Set Alarm
-            ChatTool(
-                function = ToolFunction(
-                    name = "set_alarm",
-                    description = "ضبط منبه النظام مباشرة بتوقيت محدد بدون لمس الشاشة",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "hour" to mapOf("type" to "integer", "description" to "ساعة التنبيه بنظام 24 ساعة (0 إلى 23)"),
-                            "minute" to mapOf("type" to "integer", "description" to "دقيقة التنبيه (0 إلى 59)"),
-                            "label" to mapOf("type" to "string", "description" to "عنوان أو سبب المنبه")
-                        ),
-                        "required" to listOf("hour", "minute")
-                    )
-                )
-            ),
-
-            // 7. Fast Path: Send WhatsApp Message
-            ChatTool(
-                function = ToolFunction(
-                    name = "send_whatsapp",
-                    description = "إرسال رسالة واتساب إلى شخص محدد تلقائياً",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "contact_name" to mapOf("type" to "string", "description" to "اسم الشخص أو جهة الاتصال"),
-                            "message" to mapOf("type" to "string", "description" to "نص الرسالة المطلوب إرسالها")
-                        ),
-                        "required" to listOf("contact_name", "message")
-                    )
-                )
-            ),
-
-            // 8. Device Navigation Actions
+            // 9. Device Navigation Actions
             ChatTool(
                 function = ToolFunction(
                     name = "device_action",

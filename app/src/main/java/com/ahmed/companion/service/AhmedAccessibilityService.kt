@@ -1,10 +1,11 @@
 package com.ahmed.companion.service
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -21,6 +22,8 @@ class AhmedAccessibilityService : AccessibilityService() {
             get() = instance != null
     }
 
+    private val handler = Handler(Looper.getMainLooper())
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -28,7 +31,7 @@ class AhmedAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Events monitored for passive tracking if needed
+        // Active event stream
     }
 
     override fun onInterrupt() {
@@ -52,7 +55,7 @@ class AhmedAccessibilityService : AccessibilityService() {
         return if (elements.isEmpty()) {
             "لم يتم العثور على أزرار أو نصوص واضحة في الشاشة الحالية."
         } else {
-            elements.take(30).joinToString("\n")
+            elements.take(35).joinToString("\n")
         }
     }
 
@@ -73,7 +76,7 @@ class AhmedAccessibilityService : AccessibilityService() {
         if (label != null) {
             val typeStr = when {
                 isEditable -> "[حقل كتابة]"
-                isClickable -> "[زر/عنصر قابل للضغط]"
+                isClickable -> "[زر]"
                 else -> "[نص]"
             }
             list.add("- $typeStr: \"$label\"")
@@ -100,7 +103,6 @@ class AhmedAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Deep fallback search if exact text match isn't immediate
         return deepSearchAndClick(rootNode, cleanQuery)
     }
 
@@ -142,7 +144,6 @@ class AhmedAccessibilityService : AccessibilityService() {
     fun typeTextIntoField(textToType: String): Boolean {
         val rootNode = rootInActiveWindow ?: return false
 
-        // 1. Try currently focused input
         val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (focused != null && focused.isEditable) {
             val arguments = Bundle().apply {
@@ -151,7 +152,6 @@ class AhmedAccessibilityService : AccessibilityService() {
             return focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
         }
 
-        // 2. Otherwise search for any editable field
         return findAndSetEditable(rootNode, textToType)
     }
 
@@ -200,27 +200,54 @@ class AhmedAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Direct WhatsApp dispatch and automated send
+     * High-Reliability Full WhatsApp Automation Flow:
+     * 1. Open WhatsApp
+     * 2. Click Search
+     * 3. Type Contact Name
+     * 4. Open Contact Chat
+     * 5. Type Message
+     * 6. Click Send
      */
-    fun sendWhatsAppMessage(contactPhoneOrName: String, message: String): Boolean {
-        return try {
-            val url = "https://api.whatsapp.com/send?text=${URLEncoder.encode(message, "UTF-8")}"
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse(url)
-                setPackage("com.whatsapp")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(intent)
-
-            // Trigger a delayed auto-click on the send button
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                clickElementByText("Send") || clickElementByText("إرسال") || clickElementByText("send")
-            }, 1200)
-
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error launching WhatsApp: ${e.message}")
-            false
+    fun automateWhatsAppSend(contactName: String, message: String) {
+        val pm = packageManager
+        val launchIntent = pm.getLaunchIntentForPackage("com.whatsapp")
+        if (launchIntent != null) {
+            launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(launchIntent)
         }
+
+        // Step 1: Click Search icon after WhatsApp opens
+        handler.postDelayed({
+            val clickedSearch = clickElementByText("Search") || 
+                                clickElementByText("بحث") || 
+                                clickElementByText("menuitem_search")
+            Log.d(TAG, "Clicked WhatsApp Search: $clickedSearch")
+
+            // Step 2: Type contact name into search field
+            handler.postDelayed({
+                typeTextIntoField(contactName)
+                Log.d(TAG, "Typed contact name: $contactName")
+
+                // Step 3: Click contact name in search results
+                handler.postDelayed({
+                    val clickedContact = clickElementByText(contactName)
+                    Log.d(TAG, "Clicked contact: $clickedContact")
+
+                    // Step 4: Type the message into the message input
+                    handler.postDelayed({
+                        typeTextIntoField(message)
+                        Log.d(TAG, "Typed message: $message")
+
+                        // Step 5: Click Send button
+                        handler.postDelayed({
+                            val clickedSend = clickElementByText("Send") || 
+                                              clickElementByText("إرسال") || 
+                                              clickElementByText("send")
+                            Log.d(TAG, "Clicked send button: $clickedSend")
+                        }, 700)
+                    }, 800)
+                }, 1000)
+            }, 600)
+        }, 1200)
     }
 }
