@@ -11,7 +11,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.ahmed.companion.brain.AhmedPersona
 import com.ahmed.companion.brain.DeepSeekClient
+import com.ahmed.companion.brain.models.ChatMessage
 import com.ahmed.companion.data.AppPreferences
 import com.ahmed.companion.databinding.ActivityMainBinding
 import com.ahmed.companion.execution.SystemActions
@@ -22,6 +24,7 @@ import com.ahmed.companion.voice.SpeechManager
 import com.ahmed.companion.voice.TTSManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -57,7 +60,7 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         setupVoiceComponents()
 
-        // Automatically start the background companion service
+        // Start background companion service
         AhmedVoiceService.start(this)
     }
 
@@ -67,10 +70,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUI() {
-        // Load API Key (automatically uses the embedded key)
         binding.etApiKey.setText(prefs.deepSeekApiKey)
 
-        // Save API Key
         binding.btnSaveApiKey.setOnClickListener {
             val key = binding.etApiKey.text.toString().trim()
             if (key.isNotEmpty()) {
@@ -78,19 +79,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "تم حفظ مفتاح DeepSeek بنجاح!", Toast.LENGTH_SHORT).show()
                 AhmedVoiceService.start(this)
                 updateUiState()
-            } else {
-                Toast.makeText(this, "يرجى إدخال مفتاح صالح", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // Accessibility Permission Button
         binding.btnAccessibilityPerm.setOnClickListener {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             startActivity(intent)
             Toast.makeText(this, "ابحث عن 'خدمة أحمد' وقم بتفعيلها", Toast.LENGTH_LONG).show()
         }
 
-        // Overlay Permission Button
         binding.btnOverlayPerm.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val intent = Intent(
@@ -101,12 +98,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Mic Permission Button
         binding.btnMicPerm.setOnClickListener {
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
 
-        // Direct Voice Button
         binding.btnTalkToAhmed.setOnClickListener {
             if (!hasAudioPermission()) {
                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -126,7 +121,7 @@ class MainActivity : AppCompatActivity() {
         speechManager = SpeechManager(
             context = this,
             onResult = { userSpeech ->
-                processDirectUserSpeech(userSpeech)
+                runAutonomousLoop(userSpeech)
             },
             onError = { errorMsg ->
                 binding.tvLiveStatus.text = errorMsg
@@ -137,41 +132,75 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun processDirectUserSpeech(userSpeech: String) {
+    /**
+     * Multi-step autonomous execution loop inside MainActivity
+     */
+    private fun runAutonomousLoop(userSpeech: String) {
         binding.tvLiveStatus.text = "أحمد بيفكر وبيخطط..."
-
         val client = DeepSeekClient(prefs.deepSeekApiKey)
+
         CoroutineScope(Dispatchers.Main).launch {
-            val screenState = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
             val appsSummary = systemActions.getInstalledAppsSummary()
+            val systemPrompt = AhmedPersona.buildSystemPrompt(appsSummary)
 
-            val result = client.processUserSpeech(userSpeech, screenState, appsSummary)
+            val conversation = mutableListOf<ChatMessage>()
+            conversation.add(ChatMessage(role = "system", content = systemPrompt))
 
-            when (result) {
-                is DeepSeekClient.AgentResult.SpeakAndAct -> {
-                    binding.tvLiveStatus.text = result.speechResponse
-                    ttsManager?.speak(result.speechResponse)
+            val initialScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+            if (initialScreen.isNotBlank()) {
+                conversation.add(ChatMessage(role = "system", content = "الشاشة المفتوحة حالياً:\n$initialScreen"))
+            }
 
-                    for (tool in result.toolCalls) {
-                        automationEngine.executeToolCall(tool)
+            conversation.add(ChatMessage(role = "user", content = userSpeech))
+
+            for (step in 1..4) {
+                val result = client.executeConversation(conversation)
+
+                when (result) {
+                    is DeepSeekClient.AgentResult.SpeakAndAct -> {
+                        if (result.speechResponse.isNotBlank()) {
+                            binding.tvLiveStatus.text = result.speechResponse
+                            ttsManager?.speak(result.speechResponse)
+                        }
+
+                        for (tool in result.toolCalls) {
+                            val output = automationEngine.executeToolCall(tool)
+                            conversation.add(
+                                ChatMessage(
+                                    role = "tool",
+                                    toolCallId = tool.id,
+                                    content = output
+                                )
+                            )
+                        }
+
+                        delay(1500)
+                        val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+                        conversation.add(
+                            ChatMessage(
+                                role = "system",
+                                content = "الشاشة الآن بعد الخطوة $step تعرض:\n$nextScreen\nإذا انتهى المطلوب بالكامل أكد للمستخدم بدون أدوات، وإلا استدعِ الأداة الناقصة."
+                            )
+                        )
                     }
-                }
 
-                is DeepSeekClient.AgentResult.SpeakOnly -> {
-                    binding.tvLiveStatus.text = result.speechResponse
-                    ttsManager?.speak(result.speechResponse)
-                }
+                    is DeepSeekClient.AgentResult.SpeakOnly -> {
+                        binding.tvLiveStatus.text = result.speechResponse
+                        ttsManager?.speak(result.speechResponse)
+                        break
+                    }
 
-                is DeepSeekClient.AgentResult.Error -> {
-                    binding.tvLiveStatus.text = result.errorMessage
-                    ttsManager?.speak(result.errorMessage)
+                    is DeepSeekClient.AgentResult.Error -> {
+                        binding.tvLiveStatus.text = result.errorMessage
+                        ttsManager?.speak(result.errorMessage)
+                        break
+                    }
                 }
             }
         }
     }
 
     private fun updateUiState() {
-        // Accessibility state
         val isAccessibilityEnabled = AhmedAccessibilityService.isServiceRunning
         if (isAccessibilityEnabled) {
             binding.btnAccessibilityPerm.text = "مفعلة ✓"
@@ -181,7 +210,6 @@ class MainActivity : AppCompatActivity() {
             binding.btnAccessibilityPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
         }
 
-        // Overlay state
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (Settings.canDrawOverlays(this)) {
                 binding.btnOverlayPerm.text = "مفعلة ✓"
@@ -192,7 +220,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Mic state
         if (hasAudioPermission()) {
             binding.btnMicPerm.text = "ممنوحة ✓"
             binding.btnMicPerm.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_green))

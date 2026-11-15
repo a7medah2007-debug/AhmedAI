@@ -38,38 +38,18 @@ class DeepSeekClient(private val apiKey: String) {
         data class Error(val errorMessage: String) : AgentResult()
     }
 
-    suspend fun processUserSpeech(
-        userText: String,
-        screenContext: String = "",
-        installedAppsSummary: String = ""
-    ): AgentResult = withContext(Dispatchers.IO) {
+    suspend fun executeConversation(messages: List<ChatMessage>): AgentResult = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
-            return@withContext AgentResult.Error("يا غالي، مفتاح ديب سيك مش موجود.. افتح التطبيق ودخله الأول عشان أقدر أشتغل معاك.")
+            return@withContext AgentResult.Error("مفتاح DeepSeek غير متوفر.")
         }
 
         try {
-            val systemPrompt = AhmedPersona.buildSystemPrompt(installedAppsSummary)
-            val messages = mutableListOf<ChatMessage>()
-            messages.add(ChatMessage(role = "system", content = systemPrompt))
-
-            // If there is screen context from the active app, pass it as context
-            if (screenContext.isNotBlank()) {
-                messages.add(
-                    ChatMessage(
-                        role = "system",
-                        content = "الشاشة المفتوحة حالياً أمام المستخدم تحتوي على العناصر التالية:\n$screenContext"
-                    )
-                )
-            }
-
-            messages.add(ChatMessage(role = "user", content = userText))
-
             val requestBodyObj = ChatCompletionRequest(
                 model = "deepseek-chat",
                 messages = messages,
                 tools = ToolRegistry.getUniversalTools(),
                 toolChoice = "auto",
-                temperature = 0.3
+                temperature = 0.2
             )
 
             val jsonBody = gson.toJson(requestBodyObj)
@@ -85,7 +65,7 @@ class DeepSeekClient(private val apiKey: String) {
 
             if (!response.isSuccessful || responseBody == null) {
                 Log.e(TAG, "API Error: code=${response.code}, body=$responseBody")
-                return@withContext AgentResult.Error("معلش يا غالي، في مشكلة في الاتصال بسيرفر ديب سيك دلوقتي. تأكد من رصيدك أو جودة النت.")
+                return@withContext AgentResult.Error("مشكلة في الاتصال بسيرفر الذكاء الاصطناعي.")
             }
 
             val chatResponse = gson.fromJson(responseBody, ChatResponse::class.java)
@@ -96,21 +76,38 @@ class DeepSeekClient(private val apiKey: String) {
             val toolCalls = message?.toolCalls ?: emptyList()
 
             if (toolCalls.isNotEmpty()) {
-                val speech = if (contentText.isNotBlank()) {
-                    contentText
-                } else {
-                    "عينيا، شغال عليها حالا!"
-                }
-                AgentResult.SpeakAndAct(speech, toolCalls)
+                AgentResult.SpeakAndAct(contentText, toolCalls)
             } else if (contentText.isNotBlank()) {
                 AgentResult.SpeakOnly(contentText)
             } else {
-                AgentResult.SpeakOnly("معاك يا غالي، سامعك.. أؤمرني أعمل إيه؟")
+                AgentResult.SpeakOnly("تم يا غالي!")
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Exception calling DeepSeek: ${e.message}", e)
-            AgentResult.Error("حصل خطأ بسيط في الاتصال، جرب تطلب مني تاني يا صاحبي.")
+            Log.e(TAG, "Exception in executeConversation: ${e.message}", e)
+            AgentResult.Error("حصل خطأ بسيط في الاتصال، جرب تاني.")
         }
+    }
+
+    suspend fun processUserSpeech(
+        userText: String,
+        screenContext: String = "",
+        installedAppsSummary: String = ""
+    ): AgentResult {
+        val systemPrompt = AhmedPersona.buildSystemPrompt(installedAppsSummary)
+        val messages = mutableListOf<ChatMessage>()
+        messages.add(ChatMessage(role = "system", content = systemPrompt))
+
+        if (screenContext.isNotBlank()) {
+            messages.add(
+                ChatMessage(
+                    role = "system",
+                    content = "الشاشة المفتوحة حالياً:\n$screenContext"
+                )
+            )
+        }
+
+        messages.add(ChatMessage(role = "user", content = userText))
+        return executeConversation(messages)
     }
 }

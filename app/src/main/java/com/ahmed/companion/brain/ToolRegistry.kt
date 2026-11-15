@@ -7,80 +7,11 @@ object ToolRegistry {
 
     fun getUniversalTools(): List<ChatTool> {
         return listOf(
-            // 1. Dedicated Search on YouTube (Instant Results)
+            // 1. Click First Video or First Result on Screen
             ChatTool(
                 function = ToolFunction(
-                    name = "search_youtube",
-                    description = "البحث الفوري في يوتيوب وتشغيل النتائج مباشرة لأي سورة أو أغنية أو فيديو أو بودكاست",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "query" to mapOf(
-                                "type" to "string",
-                                "description" to "عنوان الفيديو أو الكلمات المطلوب البحث عنها في يوتيوب"
-                            )
-                        ),
-                        "required" to listOf("query")
-                    )
-                )
-            ),
-
-            // 2. Send WhatsApp Message (Automated Search & Send)
-            ChatTool(
-                function = ToolFunction(
-                    name = "send_whatsapp",
-                    description = "إرسال رسالة واتساب إلى شخص محدد تلقائياً والضغط على زر الإرسال",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "contact_name" to mapOf("type" to "string", "description" to "اسم الشخص أو جهة الاتصال كما هو مسجل في الهاتف"),
-                            "message" to mapOf("type" to "string", "description" to "نص الرسالة المطلوب كتابتها وإرسالها")
-                        ),
-                        "required" to listOf("contact_name", "message")
-                    )
-                )
-            ),
-
-            // 3. Open Any App
-            ChatTool(
-                function = ToolFunction(
-                    name = "open_app",
-                    description = "فتح أي تطبيق مثبت على هاتف المستخدم (مثل: يوتيوب، واتساب، المتصفح، المعرض، الإعدادات، تيك توك، فيسبوك، إلخ)",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "app_name" to mapOf(
-                                "type" to "string",
-                                "description" to "اسم التطبيق بالعربي أو الإنجليزي (مثل: youtube, whatsapp, chrome, gallery)"
-                            )
-                        ),
-                        "required" to listOf("app_name")
-                    )
-                )
-            ),
-
-            // 4. Fast Path: Set Alarm
-            ChatTool(
-                function = ToolFunction(
-                    name = "set_alarm",
-                    description = "ضبط منبه النظام مباشرة بتوقيت محدد بدون لمس الشاشة",
-                    parameters = mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "hour" to mapOf("type" to "integer", "description" to "ساعة التنبيه بنظام 24 ساعة (0 إلى 23)"),
-                            "minute" to mapOf("type" to "integer", "description" to "دقيقة التنبيه (0 إلى 59)"),
-                            "label" to mapOf("type" to "string", "description" to "عنوان أو سبب المنبه")
-                        ),
-                        "required" to listOf("hour", "minute")
-                    )
-                )
-            ),
-
-            // 5. Read Screen (For autonomous UI steps)
-            ChatTool(
-                function = ToolFunction(
-                    name = "read_screen",
-                    description = "قراءة النصوص والأزرار والعناصر المرئية على شاشة الهاتف المفتوحة حالياً لمعرفة ما بداخلها والتفاعل معه",
+                    name = "click_first_result",
+                    description = "الضغط على أول فيديو أو أول نتيجة بحث ظاهرة على الشاشة لتشغيلها فوراً",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to emptyMap<String, Any>()
@@ -88,17 +19,81 @@ object ToolRegistry {
                 )
             ),
 
-            // 6. Click Element on Screen
+            // 2. Dedicated Instant Search on YouTube
+            ChatTool(
+                function = ToolFunction(
+                    name = "search_youtube",
+                    description = "البحث الفوري في يوتيوب وفتح صفحة النتائج مباشرة لأي سورة أو فيديو أو محتوى مطلوب",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "query" to mapOf(
+                                "type" to "string",
+                                "description" to "كلمات البحث بالإنجليزية أو العربية حسب نطق المستخدم الدقيق"
+                            )
+                        ),
+                        "required" to listOf("query")
+                    )
+                )
+            ),
+
+            // 3. Automated WhatsApp Send
+            ChatTool(
+                function = ToolFunction(
+                    name = "send_whatsapp",
+                    description = "إرسال رسالة واتساب أوتوماتيكياً (بحث عن الاسم + كتابة الرسالة + ضغط إرسال)",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "contact_name" to mapOf("type" to "string", "description" to "اسم الشخص بالإنجليزية أو العربية كما يطلبه المستخدم"),
+                            "message" to mapOf("type" to "string", "description" to "نص الرسالة المطلوب إرسالها")
+                        ),
+                        "required" to listOf("contact_name", "message")
+                    )
+                )
+            ),
+
+            // 4. Open Any Installed App
+            ChatTool(
+                function = ToolFunction(
+                    name = "open_app",
+                    description = "فتح أي تطبيق مثبت على هاتف المستخدم (فيسبوك، تليجرام، إعدادات، متصفح، تيك توك، إلخ)",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "app_name" to mapOf(
+                                "type" to "string",
+                                "description" to "اسم التطبيق بالعربي أو الإنجليزي"
+                            )
+                        ),
+                        "required" to listOf("app_name")
+                    )
+                )
+            ),
+
+            // 5. Read Screen Elements
+            ChatTool(
+                function = ToolFunction(
+                    name = "read_screen",
+                    description = "فحص شاشة الهاتف المفتوحة حالياً لاستخراج النصوص والأزرار لفهم ما تعرضه الشاشة قبل اتخاذ القرار",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to emptyMap<String, Any>()
+                    )
+                )
+            ),
+
+            // 6. Click Element by Text or Description
             ChatTool(
                 function = ToolFunction(
                     name = "click_element",
-                    description = "الضغط على زر أو عنصر في الشاشة الحالية عبر اسمه أو النص الظاهر عليه أو معرفه",
+                    description = "الضغط على أي زر أو عنصر مرئي في الشاشة عبر نصه أو معناه",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to mapOf(
                             "target" to mapOf(
                                 "type" to "string",
-                                "description" to "النص الظاهر على الزر أو معرّف العنصر المطلوب الضغط عليه (مثل: بحث، اشتراك، تشغيل، موافق)"
+                                "description" to "النص أو المعرف المطلوب النقر عليه"
                             )
                         ),
                         "required" to listOf("target")
@@ -106,17 +101,17 @@ object ToolRegistry {
                 )
             ),
 
-            // 7. Type Text into Active Input
+            // 7. Type Text into Any Active Field
             ChatTool(
                 function = ToolFunction(
                     name = "type_text",
-                    description = "كتابة نص في خانة البحث أو حقل الكتابة النشط في التطبيق المفتوح حالياً",
+                    description = "كتابة نص في خانة البحث أو حقل الإدخال المفتوح على الشاشة",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to mapOf(
                             "text" to mapOf(
                                 "type" to "string",
-                                "description" to "النص المطلوب كتابته والبحث عنه"
+                                "description" to "النص المطلوب كتابته بدقة بنفس اللغة المطلوبة"
                             )
                         ),
                         "required" to listOf("text")
@@ -128,14 +123,14 @@ object ToolRegistry {
             ChatTool(
                 function = ToolFunction(
                     name = "scroll_screen",
-                    description = "تمرير الشاشة لأعلى أو لأسفل لمشاهدة باقي المحتوى أو الفيديوهات",
+                    description = "تمرير الشاشة لأسفل أو لأعلى لاستكشاف المزيد من المحتوى",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to mapOf(
                             "direction" to mapOf(
                                 "type" to "string",
                                 "enum" to listOf("down", "up"),
-                                "description" to "اتجاه التمرير: down للأسفل، up للأعلى"
+                                "description" to "اتجاه التمرير"
                             )
                         ),
                         "required" to listOf("direction")
@@ -143,11 +138,28 @@ object ToolRegistry {
                 )
             ),
 
-            // 9. Device Navigation Actions
+            // 9. Set Alarm
+            ChatTool(
+                function = ToolFunction(
+                    name = "set_alarm",
+                    description = "ضبط منبه النظام مباشرة بتوقيت محدد",
+                    parameters = mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "hour" to mapOf("type" to "integer", "description" to "الساعة (0 إلى 23)"),
+                            "minute" to mapOf("type" to "integer", "description" to "الدقيقة (0 إلى 59)"),
+                            "label" to mapOf("type" to "string", "description" to "سبب المنبه")
+                        ),
+                        "required" to listOf("hour", "minute")
+                    )
+                )
+            ),
+
+            // 10. Device Action
             ChatTool(
                 function = ToolFunction(
                     name = "device_action",
-                    description = "تنفيذ حركة أساسية في الهاتف مثل الرجوع للخلف، الشاشة الرئيسية، أو فتح الإشعارات",
+                    description = "تنفيذ حركة أساسية في الهاتف (رجوع back، رئيسية home، إشعارات notifications)",
                     parameters = mapOf(
                         "type" to "object",
                         "properties" to mapOf(

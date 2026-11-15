@@ -20,7 +20,9 @@ import androidx.core.app.NotificationCompat
 import com.ahmed.companion.AhmedApplication
 import com.ahmed.companion.MainActivity
 import com.ahmed.companion.R
+import com.ahmed.companion.brain.AhmedPersona
 import com.ahmed.companion.brain.DeepSeekClient
+import com.ahmed.companion.brain.models.ChatMessage
 import com.ahmed.companion.data.AppPreferences
 import com.ahmed.companion.execution.SystemActions
 import com.ahmed.companion.execution.UIAutomationEngine
@@ -30,6 +32,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class AhmedVoiceService : Service() {
@@ -74,9 +77,7 @@ class AhmedVoiceService : Service() {
         systemActions = SystemActions(this)
         automationEngine = UIAutomationEngine(this, systemActions)
 
-        if (prefs.hasApiKey) {
-            deepSeekClient = DeepSeekClient(prefs.deepSeekApiKey)
-        }
+        deepSeekClient = DeepSeekClient(prefs.deepSeekApiKey)
 
         ttsManager = TTSManager(this) { success ->
             Log.d(TAG, "TTS Ready: $success")
@@ -84,7 +85,7 @@ class AhmedVoiceService : Service() {
 
         speechManager = SpeechManager(
             context = this,
-            onResult = { recognizedText -> handleUserSpeech(recognizedText) },
+            onResult = { recognizedText -> handleAutonomousTaskLoop(recognizedText) },
             onError = { errorMsg -> updateFloatingStatus(errorMsg) },
             onListeningStateChanged = { isListening ->
                 updateFloatingStatus(if (isListening) "سامعك يا غالي..." else "أحمد")
@@ -96,9 +97,7 @@ class AhmedVoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (prefs.hasApiKey) {
-            deepSeekClient = DeepSeekClient(prefs.deepSeekApiKey)
-        }
+        deepSeekClient = DeepSeekClient(prefs.deepSeekApiKey)
         return START_STICKY
     }
 
@@ -113,58 +112,88 @@ class AhmedVoiceService : Service() {
         Log.d(TAG, "Ahmed Voice Service Destroyed")
     }
 
-    /**
-     * Start voice interaction loop
-     */
     fun triggerListening() {
         ttsManager?.stop()
         speechManager?.startListening()
     }
 
-    private fun handleUserSpeech(userSpeech: String) {
-        val client = deepSeekClient
-        if (client == null) {
-            ttsManager?.speak("يا صاحبي، محتاج تحط مفتاح ديب سيك الأول في التطبيق.")
-            return
-        }
-
+    /**
+     * Autonomous Multi-Step ReAct Agent Loop:
+     * Does not stop after a single tool call!
+     * Repeats: Decision -> Execution -> Screen Wait -> New Screen State -> Next Decision
+     */
+    private fun handleAutonomousTaskLoop(userSpeech: String) {
+        val client = deepSeekClient ?: return
         updateFloatingStatus("بيفكر...")
 
         serviceScope.launch {
-            // Read active screen if available
-            val screenState = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
             val appsSummary = systemActions.getInstalledAppsSummary()
+            val systemPrompt = AhmedPersona.buildSystemPrompt(appsSummary)
 
-            val result = client.processUserSpeech(userSpeech, screenState, appsSummary)
+            val conversation = mutableListOf<ChatMessage>()
+            conversation.add(ChatMessage(role = "system", content = systemPrompt))
 
-            when (result) {
-                is DeepSeekClient.AgentResult.SpeakAndAct -> {
-                    // Speak the response to the user
-                    ttsManager?.speak(result.speechResponse)
+            // Initial screen state
+            val initialScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+            if (initialScreen.isNotBlank()) {
+                conversation.add(ChatMessage(role = "system", content = "الشاشة المفتوحة حالياً:\n$initialScreen"))
+            }
 
-                    // Execute each tool call sequentially
-                    for (toolCall in result.toolCalls) {
-                        automationEngine.executeToolCall(toolCall)
+            conversation.add(ChatMessage(role = "user", content = userSpeech))
+
+            // Loop for up to 4 autonomous steps
+            for (step in 1..4) {
+                val result = client.executeConversation(conversation)
+
+                when (result) {
+                    is DeepSeekClient.AgentResult.SpeakAndAct -> {
+                        if (result.speechResponse.isNotBlank()) {
+                            ttsManager?.speak(result.speechResponse)
+                            updateFloatingStatus("بينفذ...")
+                        }
+
+                        // Execute each tool
+                        for (tool in result.toolCalls) {
+                            val executionOutput = automationEngine.executeToolCall(tool)
+                            conversation.add(
+                                ChatMessage(
+                                    role = "tool",
+                                    toolCallId = tool.id,
+                                    content = executionOutput
+                                )
+                            )
+                        }
+
+                        // Wait for UI to render
+                        delay(1500)
+
+                        // Re-dump fresh screen state and feed it back to Ahmed
+                        val nextScreen = AhmedAccessibilityService.instance?.dumpScreenState() ?: ""
+                        conversation.add(
+                            ChatMessage(
+                                role = "system",
+                                content = "شاشة الهاتف الآن بعد تنفيذ الخطوة رقم $step تعرض ما يلي:\n$nextScreen\nإذا تم تحقيق رغبة المستخدم بالكامل، تحدث معه مؤكداً ذلك بدون استدعاء أدوات جديدة. إذا كان هناك خطوة ناقصة (مثل تشغيل أول فيديو ظاهر، أو إرسال الرسالة)، استدعِ الأداة المناسبة فوراً."
+                            )
+                        )
                     }
-                    updateFloatingStatus("أحمد")
-                }
 
-                is DeepSeekClient.AgentResult.SpeakOnly -> {
-                    ttsManager?.speak(result.speechResponse)
-                    updateFloatingStatus("أحمد")
-                }
+                    is DeepSeekClient.AgentResult.SpeakOnly -> {
+                        ttsManager?.speak(result.speechResponse)
+                        updateFloatingStatus("أحمد")
+                        break // Goal achieved!
+                    }
 
-                is DeepSeekClient.AgentResult.Error -> {
-                    ttsManager?.speak(result.errorMessage)
-                    updateFloatingStatus("أحمد")
+                    is DeepSeekClient.AgentResult.Error -> {
+                        ttsManager?.speak(result.errorMessage)
+                        updateFloatingStatus("أحمد")
+                        break
+                    }
                 }
             }
+            updateFloatingStatus("أحمد")
         }
     }
 
-    /**
-     * Build Notification for Foreground Service
-     */
     private fun buildNotification(contentText: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -183,9 +212,6 @@ class AhmedVoiceService : Service() {
             .build()
     }
 
-    /**
-     * Setup Floating Bubble on Screen
-     */
     private fun setupFloatingBubble() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Log.w(TAG, "Cannot draw overlay: Permission not granted")
@@ -215,7 +241,6 @@ class AhmedVoiceService : Service() {
             y = 200
         }
 
-        // Tap to listen & Drag to move
         floatingView?.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0

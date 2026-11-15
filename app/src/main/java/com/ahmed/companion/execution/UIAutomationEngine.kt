@@ -35,11 +35,22 @@ class UIAutomationEngine(
         val accessibility = AhmedAccessibilityService.instance
 
         return when (name) {
+            "click_first_result" -> {
+                if (accessibility != null) {
+                    val clicked = accessibility.clickFirstContentItem()
+                    if (clicked) "تم الضغط على أول فيديو أو نتيجة بحث في الشاشة." else "لم أجد عنصراً مناسباً للضغط عليه."
+                } else {
+                    "خدمة إمكانية الوصول غير مفعلة."
+                }
+            }
+
             "search_youtube" -> {
                 val query = args["query"]?.toString() ?: ""
                 val success = systemActions.searchYouTube(query)
                 if (success) {
-                    "بحثت عن $query في يوتيوب وشغلت النتائج."
+                    delay(1500) // Wait for YouTube results to appear
+                    // If user asked to play, accessibility can click the top result
+                    "بحثت عن: $query في يوتيوب والنتائج معروضة الآن."
                 } else {
                     "حصل خطأ أثناء فتح يوتيوب."
                 }

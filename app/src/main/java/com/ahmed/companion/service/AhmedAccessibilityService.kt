@@ -2,14 +2,13 @@ package com.ahmed.companion.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
-import android.net.Uri
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import java.net.URLEncoder
 
 class AhmedAccessibilityService : AccessibilityService() {
 
@@ -30,13 +29,8 @@ class AhmedAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Ahmed Accessibility Service Connected!")
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Active event stream
-    }
-
-    override fun onInterrupt() {
-        Log.w(TAG, "Ahmed Accessibility Service Interrupted")
-    }
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onInterrupt() {}
 
     override fun onDestroy() {
         super.onDestroy()
@@ -76,7 +70,7 @@ class AhmedAccessibilityService : AccessibilityService() {
         if (label != null) {
             val typeStr = when {
                 isEditable -> "[حقل كتابة]"
-                isClickable -> "[زر]"
+                isClickable -> "[زر/عنصر]"
                 else -> "[نص]"
             }
             list.add("- $typeStr: \"$label\"")
@@ -88,11 +82,53 @@ class AhmedAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Click the first primary video or content card on screen (e.g. YouTube top search result)
+     */
+    fun clickFirstContentItem(): Boolean {
+        val rootNode = rootInActiveWindow ?: return false
+        val screenBounds = Rect()
+
+        // Find the first clickable container or item below the top 15% of the screen (to skip search bar/tabs)
+        return findFirstContentNode(rootNode, 0)
+    }
+
+    private fun findFirstContentNode(node: AccessibilityNodeInfo?, depth: Int): Boolean {
+        if (node == null || depth > 8) return false
+
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+
+        // Ignore items in the very top 150px (status bar, search bar, app header)
+        if (bounds.top > 180 && bounds.height() > 80) {
+            val text = node.text?.toString()?.trim() ?: ""
+            val desc = node.contentDescription?.toString()?.trim() ?: ""
+
+            // If it has video or content text or is clickable
+            if (node.isClickable && (text.isNotBlank() || desc.isNotBlank())) {
+                Log.d(TAG, "Clicked first content item: text='$text', desc='$desc'")
+                return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+        }
+
+        for (i in 0 until node.childCount) {
+            if (findFirstContentNode(node.getChild(i), depth + 1)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * Click on a UI element matching the given text or description
      */
     fun clickElementByText(query: String): Boolean {
         val rootNode = rootInActiveWindow ?: return false
         val cleanQuery = query.lowercase().trim()
+
+        // If target represents first item / video
+        if (cleanQuery == "first_result" || cleanQuery == "first_item" || cleanQuery == "اول فيديو" || cleanQuery == "أول نتيجة") {
+            return clickFirstContentItem()
+        }
 
         val matchingNodes = rootNode.findAccessibilityNodeInfosByText(cleanQuery)
         if (matchingNodes.isNotEmpty()) {
@@ -200,13 +236,7 @@ class AhmedAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * High-Reliability Full WhatsApp Automation Flow:
-     * 1. Open WhatsApp
-     * 2. Click Search
-     * 3. Type Contact Name
-     * 4. Open Contact Chat
-     * 5. Type Message
-     * 6. Click Send
+     * Multi-step WhatsApp automation flow
      */
     fun automateWhatsAppSend(contactName: String, message: String) {
         val pm = packageManager
@@ -221,29 +251,24 @@ class AhmedAccessibilityService : AccessibilityService() {
             val clickedSearch = clickElementByText("Search") || 
                                 clickElementByText("بحث") || 
                                 clickElementByText("menuitem_search")
-            Log.d(TAG, "Clicked WhatsApp Search: $clickedSearch")
 
             // Step 2: Type contact name into search field
             handler.postDelayed({
                 typeTextIntoField(contactName)
-                Log.d(TAG, "Typed contact name: $contactName")
 
                 // Step 3: Click contact name in search results
                 handler.postDelayed({
-                    val clickedContact = clickElementByText(contactName)
-                    Log.d(TAG, "Clicked contact: $clickedContact")
+                    val clickedContact = clickElementByText(contactName) || clickFirstContentItem()
 
-                    // Step 4: Type the message into the message input
+                    // Step 4: Type message
                     handler.postDelayed({
                         typeTextIntoField(message)
-                        Log.d(TAG, "Typed message: $message")
 
                         // Step 5: Click Send button
                         handler.postDelayed({
-                            val clickedSend = clickElementByText("Send") || 
-                                              clickElementByText("إرسال") || 
-                                              clickElementByText("send")
-                            Log.d(TAG, "Clicked send button: $clickedSend")
+                            clickElementByText("Send") || 
+                            clickElementByText("إرسال") || 
+                            clickElementByText("send")
                         }, 700)
                     }, 800)
                 }, 1000)
